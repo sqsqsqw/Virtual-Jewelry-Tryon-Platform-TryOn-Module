@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta http-equiv="content-language" content="cn-ZH" />
+
+    <title>tryon platform</title>
+
+    <script src="//cdn.jsdelivr.net/npm/eruda"></script>
+    <script src="../dist/jeelizFaceFilter.js"></script>
+    <script src="../libs/threejs/v106/three.min.js"></script>
+    <script src="../helpers/JeelizResizer.js"></script>
+    <script src="../helpers/JeelizThreejsHelper.js"></script>
+    <script src="./lib/FBXLoader.js"></script>
+    <script src="./lib/inflate.min.js"></script>
+　　<script src="https://code.jquery.com/jquery-3.1.1.min.js"></script>
+
+    <link rel="stylesheet" href="./appearance/style.css" type="text/css" />
+  </head>
+
+  <body onload="main()" style='color: white'>
+    <canvas width="600" height="600" id='jeeFaceFilterCanvas'></canvas>
+    <script type="text/javascript">
+        eruda.init();
+    </script>
+    <script type="text/javascript">
+        var THREECAMERA;
+        var postURL = "https://192.168.1.106:8443/goods/getmodel"
+        var modelURL = ""//"http://192.168.1.106:8081/model/pineapple/a.fbx";
+        var scaleNum = 0;    //0.02
+        var xNum = 0;        //0
+        var yNum = 0;        //0.4
+        var zNum = 0;        //0.5
+        //获取get到的参数
+        function getUrlParam(name) {
+            var reg = new RegExp("(^|&)" + name + "=([^&]*)(&|$)"); //构造一个含有目标参数的正则表达式对象
+            var r = window.location.search.substr(1).match(reg);  //匹配目标参数
+            if (r != null) return unescape(r[2]); return null; //返回参数值
+        }
+
+        //人脸检测回调函数
+        function detect_callback(faceIndex, isDetected) {
+          if (isDetected) {
+            console.log('INFO in detect_callback() : DETECTED');
+          } else {
+            console.log('INFO in detect_callback() : LOST');
+          }
+        }
+
+        //threejs初始化
+        function init_threeScene(spec) {
+          const threeStuffs = THREE.JeelizHelper.init(spec, detect_callback);
+
+           // CREATE MODEL AND LIGHT
+          var fbx_loader = new THREE.FBXLoader();
+          console.log(modelURL);
+          fbx_loader.load(modelURL, function(object) {
+            object.scale.multiplyScalar(scaleNum);
+            object.position.set(xNum, yNum, zNum);
+            threeStuffs.faceObject.add(object);
+
+            var light = new THREE.HemisphereLight(0xffffff, 0x000000, 1);
+            light.position.set( 0, 200, 0 );
+            threeStuffs.faceObject.add(light);
+          });
+          //CREATE CAMERA
+          THREECAMERA = THREE.JeelizHelper.create_camera();
+        }
+
+        //人脸识别初始化
+        function init_faceFilter(videoSettings){
+          //FILTER INIT
+          JEEFACEFILTERAPI.init({
+            followZRot: true,
+            canvasId: 'jeeFaceFilterCanvas',
+            NNCpath: '../dist/',
+            maxFacesDetected: 1,
+            callbackReady: function(errCode, spec){
+              if (errCode){
+                console.log('AN ERROR HAPPENS. ERR =', errCode);
+                return;
+              }
+
+              console.log('INFO : JEEFACEFILTERAPI IS READY');
+              init_threeScene(spec);
+            },
+
+
+            callbackTrack: function(detectState){
+              THREE.JeelizHelper.render(detectState, THREECAMERA);
+            }
+          });
+        }
+
+        //canvas初始化
+        function init_canvas(){
+          JeelizResizer.size_canvas({
+            canvasId: 'jeeFaceFilterCanvas',
+            callback: function(isError, bestVideoSettings){
+              init_faceFilter(bestVideoSettings);
+            }
+          })
+        }
+        //主
+        function main(){
+          var goodID = getUrlParam("goodID");
+          console.log(goodID);
+          $.ajax({
+            type: "POST",
+            url: postURL,
+            data: {
+              "goodID": goodID
+            },
+            dataType: "json",
+            contentType: "application/json;charset=utf-8",
+            success: function(res){
+              xNum = res["data"]["xNum"]
+              yNum = res["data"]["yNum"]
+              zNum = res["data"]["zNum"]
+              console.log(yNum);
+              console.log(res["data"]["yNum"]);
+              scaleNum = res["data"]["scaleNum"]
+              modelURL = "https://192.168.1.106:8443" + decodeURIComponent(res["data"]["modelURL"]);
+              init_canvas();
+
+            },
+            error: function (result) {
+              writeObj(result);
+            }
+          });
+
+        }
+      function writeObj(obj){
+       var description = "";
+       for(var i in obj){
+       var property=obj[i];
+       description+=i+" = "+property+"\n";
+       }
+       alert(description);
+      }
+    </script>
+  </body>
+</html>
+
+
